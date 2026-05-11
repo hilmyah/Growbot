@@ -53,8 +53,13 @@ async function cmdESP(path) {
   return res.data;
 }
 
+app.get('/', (req, res) => res.send('Server Growbot Aktif dan Terhubung!'));
+
 app.post('/webhook', async (req, res) => {
   res.sendStatus(200);
+
+  console.log('\n=== Pesan Baru Masuk ===');
+  console.log(req.body);
 
   const sender = req.body.sender || req.body.from || '';
   const message = (req.body.message || req.body.text || '').trim();
