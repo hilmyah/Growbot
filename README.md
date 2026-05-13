@@ -51,7 +51,7 @@ Menu perintah dikirimkan otomatis di setiap balasan sehingga pengguna tidak perl
 
 ## Cara Kerja Sistem
 
-![Flowchart sistem Growmate](asset/flowchart.svg)
+![Flowchart sistem Growmate](asset/flowchart.png)
 
 Alur singkat:
 
