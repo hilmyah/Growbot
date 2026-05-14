@@ -254,6 +254,9 @@ cloudflared tunnel --url http://localhost:3000
 
 # Atau menggunakan ngrok
 ngrok http 3000
+
+# Atau menggunakan localhost.run. Layanan ini memanfaatkan klien SSH bawaan sistem operasi untuk melakukan tunneling tanpa memerlukan instalasi aplikasi pihak ketiga.
+ssh -R 80:localhost:3000 nokey@localhost.run
 ```
 
 Gunakan URL yang dihasilkan sebagai Webhook URL di Fonnte sementara pengujian berlangsung.
