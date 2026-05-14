@@ -1,12 +1,12 @@
 <div align="center">
   <img src="asset/growmate.png" alt="Growmate Logo" width="120" height="120" style="border-radius:12px"/>
   <h1>Growbot</h1>
-  <p>WhatsApp Gateway untuk <a href="https://github.com/hilmyah/Growmate">Growmate</a> — sistem irigasi cerdas berbasis ESP8266</p>
+  <p>WhatsApp Gateway untuk <a href="https://github.com/hilmyah/Growmate">Growmate</a> — sistem irigasi cerdas berbasis ESP8266 / WEMOS D1 Mini</p>
 </div>
 
 ---
 
-Growbot adalah server perantara berbasis **Node.js** yang menghubungkan WhatsApp (via Fonnte) dengan modul ESP8266 Growmate. Sistem irigasi dapat dipantau dan dikontrol dari jarak jauh hanya dengan mengirim pesan teks biasa.
+Growbot adalah server perantara berbasis **Node.js** yang menghubungkan WhatsApp (via Fonnte) dengan modul ESP8266 Growmate. Sistem irigasi dapat dipantau dan dikontrol dari jarak jauh hanya dengan mengirim pesan teks biasa ke nomor WhatsApp bot.
 
 ```
 WhatsApp → Fonnte → Growbot (Railway) → Cloudflare Tunnel / Tailscale → ESP8266
@@ -22,13 +22,14 @@ WhatsApp → Fonnte → Growbot (Railway) → Cloudflare Tunnel / Tailscale → 
 - [Cara Kerja Sistem](#cara-kerja-sistem)
 - [Struktur Proyek](#struktur-proyek)
 - [Persyaratan](#persyaratan)
-- [Instalasi](#instalasi)
-- [Setup Fonnte](#setup-fonnte)
-- [Remote Access](#remote-access)
+- [Tahap 1 — Instalasi](#tahap-1--instalasi)
+- [Tahap 2 — Setup Fonnte](#tahap-2--setup-fonnte)
+- [Tahap 3 — Remote Access](#tahap-3--remote-access)
   - [Opsi A — Cloudflare Tunnel](#opsi-a--cloudflare-tunnel-direkomendasikan)
   - [Opsi B — Tailscale Subnet Router](#opsi-b--tailscale-subnet-router)
-- [Deploy ke Railway](#deploy-ke-railway)
-- [Menjalankan Secara Lokal](#menjalankan-secara-lokal)
+- [Tahap 4 — Deploy ke Railway](#tahap-4--deploy-ke-railway)
+- [Tahap 5 — Menjalankan Secara Lokal](#tahap-5--menjalankan-secara-lokal)
+- [Referensi API ESP8266](#referensi-api-esp8266)
 
 ---
 
@@ -55,7 +56,7 @@ Menu perintah dikirimkan otomatis di setiap balasan sehingga pengguna tidak perl
 
 Alur singkat:
 
-1. **ESP8266** membaca kelembaban tanah via ADC dan menjalankan web server HTTP lokal.
+1. **ESP8266 / WEMOS D1 Mini** membaca kelembaban tanah via ADC, menampilkan status di LCD, dan menjalankan web server HTTP lokal.
 2. **Cloudflare Tunnel / Tailscale** mengekspos IP lokal ESP8266 ke internet secara aman.
 3. **Growbot** (di Railway) menerima pesan dari Fonnte melalui webhook, memparsing perintah, lalu memanggil endpoint ESP melalui URL tunnel.
 4. **Fonnte** meneruskan balasan dari Growbot ke WhatsApp pengguna.
@@ -67,8 +68,8 @@ Alur singkat:
 ```
 growbot/
 ├── asset/
-│   ├── growmate.png      # Logo proyek
-│   └── growmate.svg      # Logo versi vektor
+│   ├── flowchart.png     # Diagram alur sistem
+│   └── growmate.png      # Logo proyek
 ├── index.js              # Server utama — webhook, routing perintah, komunikasi ESP
 ├── package.json
 ├── package-lock.json
@@ -83,7 +84,7 @@ growbot/
 | `sessions` | Object in-memory untuk menyimpan state percakapan multi-step (threshold, preset) |
 | `menuText()` | Generator teks menu yang disisipkan di setiap balasan |
 | `sendWA(to, msg)` | Mengirim pesan ke nomor WhatsApp tertentu via Fonnte API |
-| `getESPData()` | `GET /api/data` ke ESP — mengambil status sensor, pompa, mode, dan threshold |
+| `getESPData()` | `GET /api/data` ke ESP — mengambil status sensor, pompa, mode, threshold, dan data LCD |
 | `cmdESP(path)` | `GET {path}` ke ESP — mengirim perintah seperti `/on`, `/off`, `/auto` |
 | `POST /webhook` | Endpoint utama yang menerima pesan masuk dari Fonnte dan memroses perintah |
 
@@ -93,12 +94,12 @@ growbot/
 
 - Node.js v16 atau lebih baru
 - Akun [Fonnte](https://fonnte.com) dengan device WhatsApp aktif
-- Firmware Growmate sudah berjalan di ESP8266 (lihat [hilmyah/Growmate](https://github.com/hilmyah/Growmate))
+- Firmware Growmate sudah berjalan di ESP8266 / WEMOS D1 Mini (lihat [hilmyah/Growmate](https://github.com/hilmyah/Growmate))
 - `cloudflared` **atau** Tailscale terinstal di komputer yang satu jaringan dengan ESP8266
 
 ---
 
-## Instalasi
+## Tahap 1 — Instalasi
 
 **1. Clone repo dan install dependensi**
 
@@ -122,24 +123,32 @@ ESP_URL=https://url-tunnel.trycloudflare.com
 PORT=3000
 ```
 
+| Variabel | Keterangan |
+|---|---|
+| `FONNTE_TOKEN` | Token dari dashboard Fonnte (lihat Tahap 2) |
+| `ESP_URL` | URL publik ESP8266 dari Cloudflare Tunnel atau IP via Tailscale (lihat Tahap 3) |
+| `PORT` | Port server (default: `3000`) |
+
 ---
 
-## Setup Fonnte
+## Tahap 2 — Setup Fonnte
 
 Fonnte berfungsi sebagai jembatan antara WhatsApp dan server Growbot.
 
 1. Buka [fonnte.com](https://fonnte.com) dan buat akun.
 2. Di dashboard, pilih **Tambah Device** → scan QR Code menggunakan WhatsApp yang akan dijadikan bot.
 3. Salin **Token** yang muncul, masukkan ke `FONNTE_TOKEN` di file `.env`.
-4. Setelah server Growbot di-deploy (lihat bagian [Deploy ke Railway](#deploy-ke-railway)), buka pengaturan device di Fonnte dan isi kolom **Webhook URL**:
+4. Setelah server Growbot di-deploy (lihat Tahap 4), buka pengaturan device di Fonnte dan isi kolom **Webhook URL**:
    ```
    https://nama-app.up.railway.app/webhook
    ```
 5. Kirim pesan apa saja ke nomor bot untuk memastikan webhook aktif.
 
+> Untuk pengujian lokal, baca [Tahap 5](#tahap-5--menjalankan-secara-lokal) untuk cara mendapatkan URL publik sementara.
+
 ---
 
-## Remote Access
+## Tahap 3 — Remote Access
 
 Server Growbot yang berjalan di Railway tidak dapat langsung menjangkau ESP8266 di jaringan lokal. Gunakan salah satu metode di bawah pada komputer yang **terhubung ke WiFi yang sama dengan ESP8266** dan biarkan berjalan selama sistem digunakan.
 
@@ -161,7 +170,7 @@ curl -L https://pkg.cloudflare.com/cloudflared-stable-linux-amd64.deb -o cloudfl
 sudo dpkg -i cloudflared.deb
 ```
 
-**Jalankan tunnel:**
+**Jalankan tunnel ke IP ESP8266:**
 
 ```bash
 cloudflared tunnel --url http://192.168.X.X
@@ -181,7 +190,7 @@ Salin URL ini ke `ESP_URL` di file `.env` atau variabel Railway.
 
 ### Opsi B — Tailscale Subnet Router
 
-Cocok jika akses ingin dibatasi hanya ke anggota tim atau perangkat tertentu. Tidak ada URL publik — koneksi lewat jaringan privat Tailscale.
+Cocok jika akses ingin dibatasi hanya ke anggota tim atau perangkat tertentu. Koneksi berjalan lewat jaringan privat Tailscale tanpa URL publik.
 
 **Instalasi Tailscale:** unduh di [tailscale.com/download](https://tailscale.com/download).
 
@@ -195,7 +204,7 @@ sudo tailscale up --advertise-routes=192.168.1.0/24
 tailscale up --advertise-routes=192.168.1.0/24
 ```
 
-Sesuaikan `192.168.1.0/24` dengan subnet WiFi yang digunakan (cek dengan `ipconfig` / `ip a`).
+> Sesuaikan `192.168.1.0/24` dengan subnet WiFi yang digunakan (cek dengan `ipconfig` / `ip a`).
 
 Setelah itu:
 
@@ -210,7 +219,7 @@ ESP_URL=http://192.168.1.X
 
 ---
 
-## Deploy ke Railway
+## Tahap 4 — Deploy ke Railway
 
 Railway menjalankan Growbot secara permanen di cloud tanpa perlu menyalakan komputer sendiri.
 
@@ -227,11 +236,11 @@ Railway menjalankan Growbot secara permanen di cloud tanpa perlu menyalakan komp
 
 5. Railway otomatis menjalankan `npm start` setelah deploy selesai.
 6. Salin **URL domain Railway** yang diberikan (contoh: `https://growbot-production.up.railway.app`).
-7. Tempel URL tersebut ditambah `/webhook` ke kolom Webhook URL di Fonnte (lihat [Setup Fonnte](#setup-fonnte)).
+7. Tempel URL tersebut ditambah `/webhook` ke kolom Webhook URL di Fonnte (lihat [Tahap 2](#tahap-2--setup-fonnte)).
 
 ---
 
-## Menjalankan Secara Lokal
+## Tahap 5 — Menjalankan Secara Lokal
 
 ```bash
 npm start
@@ -251,6 +260,23 @@ Gunakan URL yang dihasilkan sebagai Webhook URL di Fonnte sementara pengujian be
 
 ---
 
+## Referensi API ESP8266
+
+Endpoint yang dikonsumsi Growbot dari firmware Growmate:
+
+| Method | Endpoint | Keterangan |
+|:---:|---|---|
+| GET | `/api/data` | Status lengkap (ADC, kelembaban, kondisi, mode, threshold, count) |
+| GET | `/api/threshold?val=700` | Ubah nilai threshold |
+| GET | `/api/presets` | Ambil daftar preset tanaman |
+| POST | `/api/presets` | Simpan preset baru |
+| GET | `/api/history` | 5 data ADC terakhir |
+| GET | `/on` | Nyalakan pompa — Manual ON |
+| GET | `/off` | Matikan pompa — Manual OFF |
+| GET | `/auto` | Aktifkan mode otomatis |
+
+---
+
 <div align="center">
-  <sub>Growbot merupakan bagian dari proyek <a href="https://github.com/hilmyah/Growmate">Growmate</a> — Smart Irrigation System berbasis ESP8266.</sub>
+  <sub>Growbot merupakan bagian dari proyek <a href="https://github.com/hilmyah/Growmate">Growmate</a> — Smart Irrigation System berbasis ESP8266 / WEMOS D1 Mini.</sub>
 </div>
