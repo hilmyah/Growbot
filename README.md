@@ -1,233 +1,213 @@
 <div align="center">
-  <img src="asset/growmate1.png" alt="Growmate Logo" width="180"/>
-  <h1>Growmate</h1>
-  <p>Sistem irigasi cerdas berbasis WEMOS D1 Mini / ESP8266 dengan Web Dashboard, LCD, Blynk, dan bot WhatsApp & Telegram</p>
-  <p>
-    <a href="https://github.com/hilmyah/Growbot">🤖 Growbot — WhatsApp & Telegram Gateway</a>
-  </p>
+  <img src="asset/growmate.png" alt="Growmate Logo" width="120" height="120" style="border-radius:12px"/>
+  <h1>Growbot</h1>
+  <p>WhatsApp & Telegram Gateway untuk <a href="https://github.com/hilmyah/Growmate">Growmate</a> — sistem irigasi cerdas berbasis ESP8266 / WEMOS D1 Mini</p>
 </div>
+
+---
+
+Growbot adalah server perantara berbasis **Node.js** yang menghubungkan **WhatsApp** (via Fonnte) dan **Telegram** dengan modul ESP8266 Growmate. Sistem irigasi dapat dipantau dan dikontrol dari jarak jauh melalui pesan teks biasa. Kedua platform berjalan bersamaan dan saling membackup — jika satu bermasalah, platform lainnya tetap berfungsi.
+
+```
+WhatsApp  →  Fonnte  ┐
+                      ├→  Growbot (Railway)  →  Cloudflare Tunnel  →  ESP8266
+Telegram  →  Polling ┘
+```
+
+> Repo firmware dan hardware: [hilmyah/Growmate](https://github.com/hilmyah/Growmate)
 
 ---
 
 ## Daftar Isi
 
-- [Tentang Proyek](#tentang-proyek)
 - [Fitur](#fitur)
-- [Struktur Repository](#struktur-repository)
+- [Cara Kerja Sistem](#cara-kerja-sistem)
+- [Struktur Proyek](#struktur-proyek)
 - [Persyaratan](#persyaratan)
-- [Tahap 1 — Persiapan Arduino IDE](#tahap-1--persiapan-arduino-ide)
-- [Tahap 2 — Setup Blynk](#tahap-2--setup-blynk)
-- [Tahap 3 — Konfigurasi Firmware](#tahap-3--konfigurasi-firmware)
-- [Tahap 4 — Upload ke WEMOS D1 Mini](#tahap-4--upload-ke-wemos-d1-mini)
-- [Tahap 5 — Remote Access](#tahap-5--remote-access)
-- [Penjelasan Kode](#penjelasan-kode)
-- [API Endpoint ESP8266](#api-endpoint-esp8266)
-
----
-
-## Tentang Proyek
-
-Growmate adalah firmware untuk **WEMOS D1 Mini / ESP8266** yang mengotomasi penyiraman tanaman berdasarkan pembacaan sensor kelembaban tanah. Status sistem ditampilkan secara real-time di **layar LCD I2C** yang terpasang langsung pada modul. Sistem dapat diakses melalui tiga antarmuka sekaligus: **Web Dashboard** yang berjalan langsung di ESP8266, **aplikasi Blynk** di smartphone, dan **bot WhatsApp & Telegram** melalui [Growbot](https://github.com/hilmyah/Growbot).
+- [Tahap 1 — Instalasi](#tahap-1--instalasi)
+- [Tahap 2 — Setup WhatsApp (Fonnte)](#tahap-2--setup-whatsapp-fonnte)
+- [Tahap 3 — Setup Telegram Bot](#tahap-3--setup-telegram-bot)
+- [Tahap 4 — Remote Access](#tahap-4--remote-access)
+- [Tahap 5 — Deploy ke Railway](#tahap-5--deploy-ke-railway)
+- [Tahap 6 — Menjalankan Secara Lokal](#tahap-6--menjalankan-secara-lokal)
+- [Referensi API ESP8266](#referensi-api-esp8266)
 
 ---
 
 ## Fitur
 
-- **LCD I2C real-time** — tiga halaman bergantian setiap 3 detik: kelembaban, mode & pompa, threshold & counter.
-- **Pembacaan sensor real-time** — nilai ADC (0–1024) dan persentase kelembaban ditampilkan di dashboard.
-- **Mode otomatis** — pompa menyala/mati berdasarkan nilai threshold dengan hysteresis ±20 ADC.
-- **Mode manual** — kontrol pompa langsung dengan timer otomatis 60 detik sebagai pengaman.
-- **Jadwal penyiraman** — interval penyiraman terjadwal (menit hingga mingguan) yang persisten di EEPROM; dapat diatur dari dashboard web maupun bot Growbot.
-- **Light / dark mode** — dashboard web dengan toggle tema terang dan gelap, tersimpan di browser.
-- **Grafik historis** — riwayat 40 pembacaan kelembaban terakhir dalam bentuk chart.
-- **Preset tanaman** — 10 preset bawaan, dapat ditambah hingga 10 preset kustom via dashboard atau bot.
-- **Persistensi EEPROM** — threshold, preset, dan jadwal tersimpan dan tidak hilang saat restart.
-- **mDNS** — akses dashboard via `http://growmate.local` tanpa perlu mengingat IP.
-- **OTA update** — upload firmware baru tanpa kabel melalui jaringan WiFi.
-- **Integrasi Blynk** — pantau dan kontrol pompa dari aplikasi Blynk (V0, V1, V2, V3).
-- **API JSON** — endpoint HTTP untuk integrasi dengan [Growbot](https://github.com/hilmyah/Growbot) (WhatsApp & Telegram gateway).
+| Perintah | Fungsi |
+|:---:|---|
+| `1` | Status terkini — ADC, kelembaban %, kondisi tanah, mode, threshold, waktu terakhir disiram |
+| `2` | Nyalakan pompa manual (mati otomatis dalam 60 detik) |
+| `3` | Matikan pompa manual |
+| `4` | Aktifkan mode otomatis |
+| `5` | Atur nilai threshold (input multi-step, rentang 200–1024) |
+| `6` | Tambah preset tanaman baru (nama + threshold, input multi-step) |
+| `7` | Riwayat 5 data kelembaban terakhir |
+| `8` | Atur jadwal penyiraman terjadwal (interval jam/menit, persisten di EEPROM) |
+
+Menu dikirim otomatis di setiap balasan. Kedua platform (WA & Telegram) mendukung seluruh perintah di atas. Token masing-masing bersifat opsional — platform hanya aktif jika token-nya diisi di `.env`.
 
 ---
 
-## Struktur Repository
+## Cara Kerja Sistem
+
+Diagram alur sistem tersedia di [`asset/flowchart.html`](asset/flowchart.html) — buka di browser untuk tampilan interaktif penuh.
 
 ```
-Growmate/
-├── growmate/
-│   └── growmate.ino      # Firmware utama ESP8266
+┌─────────────┐     ┌─────────────┐     ┌──────────────────┐     ┌──────────┐
+│  WhatsApp   │────▶│   Fonnte    │────▶│                  │────▶│         │
+│  Telegram   │────▶│  (polling)  │────▶│  Growbot Railway │────▶│ ESP8266 │
+└─────────────┘     └─────────────┘     │                  │◀────│         │
+                                        └──────────────────┘     └──────────┘
+                                                  ▲
+                                        Cloudflare Tunnel / Tailscale
+```
+
+Alur singkat:
+
+1. **ESP8266 / WEMOS D1 Mini** membaca kelembaban tanah, menampilkan status di LCD, dan menjalankan web server HTTP lokal.
+2. **Cloudflare Tunnel / Tailscale** mengekspos IP lokal ESP8266 ke internet secara aman.
+3. **Growbot** (di Railway) menerima pesan dari Fonnte via webhook **atau** dari Telegram via polling, memproses perintah, lalu memanggil endpoint ESP melalui URL tunnel.
+4. Balasan dikirim balik ke pengguna di platform yang sama.
+
+Session state (multi-step untuk threshold, preset, dan jadwal) dipisah per platform menggunakan key format `wa:<nomor>` dan `tg:<chatId>`, sehingga keduanya tidak saling bentrok.
+
+---
+
+## Struktur Proyek
+
+```
+Growbot/
 ├── asset/
-│   ├── growmate.png      # Logo proyek (ikon)
-│   ├── growmate1.png     # Logo proyek (full)
-│   ├── flowchart.png     # Diagram alur sistem (PNG)
-│   └── growmate.svg      # Logo versi vektor
-├── index.html            # Halaman link proyek (portal publik / QR pamflet)
-└── README.md
+│   ├── flowchart.html    # Diagram alur sistem (interaktif, SVG inline)
+│   └── growmate.png      # Logo proyek
+├── index.js              # Server utama — webhook WA, polling TG, routing perintah
+├── package.json
+├── package-lock.json
+├── .env.example          # Template variabel environment
+└── .gitignore
 ```
 
-### Ringkasan `growmate.ino`
+### Penjelasan `index.js`
 
-| Fungsi / Bagian | Keterangan |
+| Bagian | Keterangan |
 |---|---|
-| `loadFromEEPROM()` | Membaca threshold, preset, dan jadwal dari EEPROM saat boot |
-| `saveThreshold()` | Menyimpan nilai threshold ke EEPROM setiap kali diubah |
-| `savePresetsToEEPROM()` | Menyimpan seluruh data preset ke EEPROM |
-| `saveScheduleToEEPROM()` | Menyimpan konfigurasi jadwal penyiraman ke EEPROM |
-| `updateLCD()` | Memperbarui tampilan LCD — 3 halaman bergantian tiap 3 detik |
-| `updatePumpState()` | Mengontrol relay pompa dan memperbarui status ke Blynk |
-| `MAIN_page[]` | Halaman HTML dashboard (inline di PROGMEM, light/dark mode, Chart.js) |
-| `handleApi()` | Endpoint `/api/data` — JSON status sensor, sistem, dan jadwal |
-| `handleSetThreshold()` | Endpoint `/api/threshold` — ubah threshold secara dinamis |
-| `handleGetPresets()` | Endpoint `GET /api/presets` — ambil daftar preset kustom |
-| `handlePostPresets()` | Endpoint `POST /api/presets` — simpan preset baru dari Growbot |
-| `handleGetHistory()` | Endpoint `/api/history` — 5 data ADC terakhir (dipakai Growbot) |
-| `handleSetSchedule()` | Endpoint `/api/schedule` — atur interval jadwal penyiraman |
-| `sendToBlynk()` | Timer 1 detik — kirim data sensor ke virtual pin Blynk |
-| `BLYNK_WRITE(V3)` | Handler kontrol pompa dari tombol di aplikasi Blynk |
-| `loop()` | Mengelola OTA, mDNS, Blynk, LCD paging, logika auto mode, timeout manual, jadwal penyiraman |
+| `sessions` | Object in-memory — state percakapan multi-step per platform & pengguna |
+| `menuText()` | Generator teks menu yang disisipkan di setiap balasan |
+| `sendMsg(platform, target, text)` | Abstraksi pengiriman pesan — WA via Fonnte, Telegram via `bot.sendMessage` |
+| `handleMessage(platform, target, message)` | Logika terpusat — dipanggil oleh webhook WA dan listener Telegram |
+| `getESPData()` | `GET /api/data` ke ESP |
+| `cmdESP(path)` | `GET {path}` ke ESP — perintah `/on`, `/off`, `/auto`, `/api/threshold`, `/api/schedule` |
+| `parseIntervalInput(input)` | Parser format interval jadwal: `"24"`, `"12j"`, `"90m"`, `"1j30m"`, `"10:30"` |
+| `fmtInterval(totalMin)` | Konversi menit ke string yang mudah dibaca (`"1 jam 30 menit"`) |
+| `POST /webhook` | Menerima pesan masuk dari Fonnte (WhatsApp) |
+| `bot.on('message')` | Menerima pesan masuk dari Telegram via polling |
 
 ---
 
 ## Persyaratan
 
-**Perangkat keras:**
+- Node.js v16 atau lebih baru
+- Akun [Fonnte](https://fonnte.com) dengan device WhatsApp aktif *(opsional)*
+- Bot Telegram dari [@BotFather](https://t.me/BotFather) *(opsional)*
+- Firmware Growmate v2 sudah berjalan di ESP8266 (lihat [hilmyah/Growmate](https://github.com/hilmyah/Growmate))
+- `cloudflared` atau Tailscale di komputer yang satu jaringan dengan ESP8266
 
-| Komponen | Pin |
-|---|---|
-| WEMOS D1 Mini / NodeMCU ESP8266 | — |
-| Sensor kelembaban tanah | `A0` |
-| Relay module | `D2` / GPIO 4, aktif HIGH |
-| LCD I2C 16×2 | SDA (`D4`) · SCL (`D5`) |
-| Pompa air mini DC | via relay |
-
-> ESP8266 hanya mendukung WiFi **2.4 GHz**. Pastikan tidak menggunakan jaringan 5 GHz.
-
-**Perangkat lunak:**
-
-- Arduino IDE 1.8+ atau 2.x
-- Board package: ESP8266 by ESP8266 Community
-- Library: `Blynk`, `LiquidCrystal_I2C`, `Wire`, `ESP8266WiFi`, `ESP8266WebServer`, `ESP8266mDNS`, `ArduinoOTA`, `EEPROM`
-- Akun [Blynk](https://blynk.io) (gratis)
+> Minimal salah satu dari `FONNTE_TOKEN` atau `TELEGRAM_TOKEN` harus diisi agar bot aktif.
 
 ---
 
-## Tahap 1 — Persiapan Arduino IDE
+## Tahap 1 — Instalasi
 
-**Instal board ESP8266:**
+**Clone dan install dependensi:**
 
-1. Buka Arduino IDE → **File → Preferences**
-2. Di kolom **Additional Boards Manager URLs**, tambahkan:
-   ```
-   https://arduino.esp8266.com/stable/package_esp8266com_index.json
-   ```
-3. Buka **Tools → Board → Boards Manager**, cari `esp8266`, instal **ESP8266 by ESP8266 Community**
-4. Pilih board: **Tools → Board → ESP8266 Boards → LOLIN(WEMOS) D1 R2 & Mini**
-
-**Instal library yang dibutuhkan** (via Sketch → Include Library → Manage Libraries):
-
-| Library | Sumber |
-|---|---|
-| `Blynk` | Library Manager — "Blynk" oleh Volodymyr Shymanskyy |
-| `LiquidCrystal I2C` | Library Manager — "LiquidCrystal I2C" oleh Frank de Brabander |
-| `ESP8266WiFi`, `ESP8266WebServer`, `ESP8266mDNS`, `ArduinoOTA`, `EEPROM` | Otomatis tersedia setelah board package terinstal |
-| `Wire` | Built-in |
-
----
-
-## Tahap 2 — Setup Blynk
-
-1. Buat akun di [blynk.io](https://blynk.io) → buat **Template** baru (Hardware: ESP8266, Connection: WiFi)
-2. Buat **Datastream** berikut:
-
-   | Virtual Pin | Nama | Tipe | Keterangan |
-   |:---:|---|:---:|---|
-   | V0 | Soil ADC | Integer | Nilai ADC mentah (0–1024) |
-   | V1 | Mode | String | Auto / Manual ON / Manual OFF |
-   | V2 | Kelembaban % | Integer | Persentase kelembaban (0–100%) |
-   | V3 | Kontrol Pompa | Integer | 1 = ON · 0 = OFF |
-
-3. Buat **Device** dari template, salin **Template ID**, **Template Name**, dan **Auth Token**
-
----
-
-## Tahap 3 — Konfigurasi Firmware
-
-Buka `growmate/growmate.ino`, ubah bagian berikut:
-
-**Kredensial Blynk:**
-
-```cpp
-#define BLYNK_TEMPLATE_ID   "TMPLxxxxxxxxxx"
-#define BLYNK_TEMPLATE_NAME "Growmate"
-#define BLYNK_AUTH_TOKEN    "xxxxxxxxxxxx"
+```bash
+git clone https://github.com/hilmyah/Growbot.git
+cd Growbot
+npm install
 ```
 
-**Kredensial WiFi:**
+**Salin dan isi file environment:**
 
-```cpp
-const char* ssid     = "NamaWiFiKamu";
-const char* password = "PasswordWiFi";
+```bash
+cp .env.example .env
 ```
 
-**Konfigurasi pin dan LCD:**
+```ini
+# WhatsApp — token dari dashboard Fonnte (kosongkan jika tidak dipakai)
+FONNTE_TOKEN=token_dari_fonnte
 
-```cpp
-const int soilPin  = A0;
-const int relayPin = D2;                       // GPIO4, aktif HIGH
-LiquidCrystal_I2C lcd(0x27, 16, 2);           // Coba 0x3F jika LCD tidak tampil
+# Telegram — token dari @BotFather (kosongkan jika tidak dipakai)
+TELEGRAM_TOKEN=1234567890:AAHxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+# URL ESP8266 dari Cloudflare Tunnel atau Tailscale IP
+ESP_URL=https://random-name.trycloudflare.com
+
+PORT=3000
 ```
 
-**Threshold default** (hanya berlaku saat EEPROM kosong pertama kali):
+Saat server dijalankan, terminal menampilkan platform mana yang aktif:
 
-```cpp
-int threshold = 700;   // 200–1024; rendah = basah, tinggi = kering
+```
+WhatsApp (Fonnte) aktif.
+Telegram Bot aktif.
+Server aktif pada port 3000
 ```
 
 ---
 
-## Tahap 4 — Upload ke WEMOS D1 Mini
+## Tahap 2 — Setup WhatsApp (Fonnte)
 
-1. Hubungkan WEMOS ke komputer via USB Micro-B
-2. Atur di Arduino IDE:
-
-   | Pengaturan | Nilai |
-   |---|---|
-   | Board | LOLIN(WEMOS) D1 R2 & Mini |
-   | Upload Speed | 115200 |
-   | Port | Pilih port COM yang muncul |
-
-3. Klik **Upload**, tunggu `Done uploading`
-4. Buka **Serial Monitor** @ 115200 baud — catat IP ESP8266:
+1. Buka [fonnte.com](https://fonnte.com) → buat akun
+2. **Tambah Device** → scan QR menggunakan WhatsApp yang dijadikan bot
+3. Salin **Token** → masukkan ke `FONNTE_TOKEN` di `.env`
+4. Setelah server di-deploy (lihat Tahap 5), isi **Webhook URL** di pengaturan device Fonnte:
    ```
-   WiFi connected — 192.168.1.X
-   mDNS started — http://growmate.local
-   System ready — http://192.168.1.X
+   https://nama-app.up.railway.app/webhook
    ```
-5. Buka browser di perangkat yang satu jaringan, akses `http://growmate.local`
-
-> **Troubleshooting LCD:** Jika menampilkan karakter acak, pastikan VCC LCD terhubung ke pin **5V** Wemos (bukan 3.3V). Jika tidak tampil sama sekali, coba ubah alamat dari `0x27` ke `0x3F`. Upload sketch `i2c_scanner.ino` untuk menemukan alamat yang benar.
+5. Kirim pesan apa saja ke nomor bot untuk memverifikasi webhook aktif
 
 ---
 
-## Tahap 5 — Remote Access
+## Tahap 3 — Setup Telegram Bot
 
-Agar [Growbot](https://github.com/hilmyah/Growbot) yang berjalan di cloud dapat berkomunikasi dengan ESP8266 di jaringan lokal, jalankan salah satu metode berikut di komputer yang **satu jaringan WiFi dengan ESP8266**.
+1. Buka [@BotFather](https://t.me/BotFather) di Telegram → kirim `/newbot`
+2. Ikuti instruksi — pilih nama dan username bot
+3. Salin **token** yang diberikan (format: `1234567890:AAHxxxxxxx`) → masukkan ke `TELEGRAM_TOKEN` di `.env`
+4. Tidak perlu konfigurasi webhook — Growbot menggunakan **polling** sehingga langsung aktif saat server berjalan
+
+> Telegram polling tidak memerlukan URL publik untuk bot itu sendiri. Yang memerlukan URL publik hanyalah `ESP_URL` (tunnel ke ESP8266).
+
+---
+
+## Tahap 4 — Remote Access
+
+Server Growbot di Railway tidak dapat langsung menjangkau ESP8266 di jaringan lokal. Jalankan salah satu metode berikut di komputer yang **satu jaringan WiFi dengan ESP8266** dan biarkan berjalan selama sistem digunakan.
 
 ### Opsi A — Cloudflare Tunnel (Direkomendasikan)
 
 ```bash
 # Instalasi
-brew install cloudflared           # macOS
-winget install Cloudflare.cloudflared  # Windows
+brew install cloudflared              # macOS
+winget install Cloudflare.cloudflared # Windows
 
-# Jalankan tunnel
-cloudflared tunnel --url http://192.168.1.X
+# Jalankan tunnel ke IP ESP8266
+cloudflared tunnel --url http://192.168.X.X
 ```
 
-URL publik muncul di terminal — salin ke `ESP_URL` di Growbot.
+URL publik muncul di terminal:
+
+```
+https://random-name.trycloudflare.com
+```
+
+Salin ke `ESP_URL` di `.env` atau variabel Railway.
 
 > URL berubah setiap `cloudflared` dijalankan ulang. Untuk URL permanen, buat [Named Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/) dengan akun Cloudflare gratis.
 
-### Opsi B — Tailscale
+### Opsi B — Tailscale Subnet Router
 
 ```bash
 # Linux / macOS
@@ -237,76 +217,68 @@ sudo tailscale up --advertise-routes=192.168.1.0/24
 tailscale up --advertise-routes=192.168.1.0/24
 ```
 
-Setujui route di [Tailscale Admin Console](https://login.tailscale.com/admin/machines), lalu gunakan IP lokal ESP8266 sebagai `ESP_URL`.
+Sesuaikan subnet dengan jaringan WiFi yang digunakan. Setujui route di [Tailscale Admin Console](https://login.tailscale.com/admin/machines), lalu gunakan IP lokal ESP8266 sebagai `ESP_URL`:
+
+```ini
+ESP_URL=http://192.168.1.X
+```
 
 ---
 
-## Penjelasan Kode
+## Tahap 5 — Deploy ke Railway
 
-### LCD paging
+1. Push repo ini ke GitHub
+2. Buka [railway.app](https://railway.app) → **New Project** → **Deploy from GitHub Repo**
+3. Pilih repo `Growbot`
+4. Buka tab **Variables**, tambahkan:
 
-LCD I2C diperbarui tiap 1 detik secara non-blocking (`millis()`). Tiga halaman bergantian setiap 3 detik:
+   | Key | Value |
+   |---|---|
+   | `FONNTE_TOKEN` | Token Fonnte *(kosongkan jika tidak dipakai)* |
+   | `TELEGRAM_TOKEN` | Token BotFather *(kosongkan jika tidak dipakai)* |
+   | `ESP_URL` | URL Cloudflare Tunnel atau IP Tailscale |
+   | `PORT` | `3000` |
 
-| Halaman | Baris 1 | Baris 2 |
-|:---:|---|---|
-| 1 | `Tanah: BASAH` | `ADC: 412   60%` |
-| 2 | `Mode: AUTO` | `Pompa: OFF` |
-| 3 | `Batas: 700` | `Disiram:   0 kali` |
-
-### Logika mode otomatis
-
-```cpp
-if (raw > threshold + 20 && !isPumpOn) { isPumpOn = true; wateringCount++; }
-if (raw < threshold - 20 &&  isPumpOn) { isPumpOn = false; }
-```
-
-Hysteresis ±20 mencegah relay chattering saat ADC berada di sekitar nilai threshold.
-
-### Jadwal penyiraman
-
-```cpp
-// Contoh: jadwal setiap 720 menit (12 jam)
-// GET /api/schedule?min=720&en=1
-if (schedEnabled && millis() - lastSchedWater >= schedIntervalMs) {
-  // aktifkan pompa selama 60 detik, lalu kembali ke mode sebelumnya
-}
-```
-
-Interval disimpan dalam satuan menit (uint16, maks 10.080 = 1 minggu). Format input yang diterima Growbot: `"24"` (24 jam), `"12j"`, `"90m"`, `"1j30m"`, `"10:30"`.
-
-### Timeout manual
-
-```cpp
-const long manualTimeout = 60000;   // pompa mati otomatis setelah 60 detik
-```
-
-### Penyimpanan EEPROM
-
-| Alamat | Data | Ukuran |
-|:---:|---|:---:|
-| `0–1` | Threshold (int) | 2 byte |
-| `2` | Jumlah preset kustom (byte) | 1 byte |
-| `3–152` | Data preset: 13 byte nama + 2 byte threshold per slot, maks 10 slot | 150 byte |
-| `163` | schedEnabled (byte, 1=aktif) | 1 byte |
-| `164–165` | schedIntervalMin (uint16, menit) | 2 byte |
-
-### Blynk non-blocking
-
-Jika koneksi ke server Blynk terputus, sistem mencoba reconnect setiap 10 detik tanpa menghentikan web server, pembacaan sensor, atau tampilan LCD.
+5. Railway otomatis menjalankan `npm start`
+6. Salin URL Railway → tempel ditambah `/webhook` ke Webhook URL di Fonnte
 
 ---
 
-## API Endpoint ESP8266
+## Tahap 6 — Menjalankan Secara Lokal
+
+```bash
+npm start
+```
+
+Untuk menerima webhook Fonnte saat pengembangan lokal, buat URL publik sementara:
+
+```bash
+# Cloudflared
+cloudflared tunnel --url http://localhost:3000
+
+# ngrok
+ngrok http 3000
+
+# localhost.run (tanpa instalasi)
+ssh -R 80:localhost:3000 nokey@localhost.run
+```
+
+Gunakan URL yang dihasilkan sebagai Webhook URL sementara di Fonnte.
+
+> Telegram polling berjalan langsung tanpa URL publik — tidak perlu konfigurasi tambahan untuk pengujian lokal.
+
+---
+
+## Referensi API ESP8266
 
 | Method | Endpoint | Keterangan |
 |:---:|---|---|
-| GET | `/` | Halaman HTML dashboard |
 | GET | `/api/data` | Status lengkap (ADC, kondisi, pompa, mode, threshold, count, jadwal) |
-| GET | `/api/threshold?val=700` | Ubah nilai threshold |
-| GET | `/api/presets` | Ambil daftar preset kustom (JSON array) |
-| POST | `/api/presets` | Simpan preset kustom (JSON body) |
-| GET | `/api/history` | 5 data ADC terakhir — dipakai Growbot |
-| GET | `/api/schedule?min=720&en=1` | Atur jadwal penyiraman (`en=0` untuk nonaktifkan) |
+| GET | `/api/threshold?val=700` | Ubah threshold |
+| GET | `/api/presets` | Ambil daftar preset kustom |
+| POST | `/api/presets` | Simpan preset kustom (JSON array) |
+| GET | `/api/history` | 5 data ADC terakhir |
+| GET | `/api/schedule?min=60&en=1` | Atur jadwal penyiraman (`en=0` untuk nonaktifkan) |
 | GET | `/on` | Manual ON |
 | GET | `/off` | Manual OFF |
 | GET | `/auto` | Mode otomatis |
@@ -331,5 +303,5 @@ Jika koneksi ke server Blynk terputus, sistem mencoba reconnect setiap 10 detik 
 ---
 
 <div align="center">
-  <sub>Growmate · Tugas PKK · 2025 &nbsp;|&nbsp; <a href="https://github.com/hilmyah/Growbot">Growbot — WhatsApp & Telegram Gateway</a></sub>
+  <sub>Growbot merupakan bagian dari proyek <a href="https://github.com/hilmyah/Growmate">Growmate</a> — Smart Irrigation System berbasis ESP8266 / WEMOS D1 Mini.</sub>
 </div>
