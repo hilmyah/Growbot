@@ -54,7 +54,7 @@ Menu dikirim otomatis di setiap balasan. Kedua platform (WA & Telegram) mendukun
 ## Cara Kerja Sistem
 
 <div align="center">
-  <img src="asset/flowchart.svg" alt="Flowchart arsitektur sistem Growmate" style="max-width:100%"/>
+  <img src="asset/flowchart.png" alt="Flowchart arsitektur sistem Growmate" style="max-width:100%"/>
 </div>
 
 Alur singkat:
