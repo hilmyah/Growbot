@@ -8,9 +8,11 @@
 
 Growbot adalah server perantara berbasis **Node.js** yang menghubungkan **WhatsApp** (via Fonnte) dan **Telegram** dengan modul ESP8266 Growmate. Sistem irigasi dapat dipantau dan dikontrol dari jarak jauh melalui pesan teks biasa. Kedua platform berjalan bersamaan dan saling membackup — jika satu bermasalah, platform lainnya tetap berfungsi.
 
-<div align="center">
-  <img src="asset/flowchart.png" alt="Flowchart Arsitektur Growbot" style="max-width: 100%;">
-</div>
+```
+WhatsApp  →  Fonnte  ┐
+                      ├→  Growbot (Railway)  →  Cloudflare Tunnel  →  ESP8266
+Telegram  →  Polling ┘
+```
 
 > Repo firmware dan hardware: [hilmyah/Growmate](https://github.com/hilmyah/Growmate)
 
@@ -51,17 +53,9 @@ Menu dikirim otomatis di setiap balasan. Kedua platform (WA & Telegram) mendukun
 
 ## Cara Kerja Sistem
 
-Diagram alur sistem tersedia di [`asset/flowchart.html`](asset/flowchart.html) — buka di browser untuk tampilan interaktif penuh.
-
-```
-┌─────────────┐     ┌─────────────┐     ┌──────────────────┐     ┌──────────┐
-│  WhatsApp   │────▶│   Fonnte    │────▶│                  │────▶│         │
-│  Telegram   │────▶│  (polling)  │────▶│  Growbot Railway │────▶│ ESP8266 │
-└─────────────┘     └─────────────┘     │                  │◀────│         │
-                                        └──────────────────┘     └──────────┘
-                                                  ▲
-                                        Cloudflare Tunnel / Tailscale
-```
+<div align="center">
+  <img src="asset/flowchart.svg" alt="Flowchart arsitektur sistem Growmate" style="max-width:100%"/>
+</div>
 
 Alur singkat:
 
@@ -79,7 +73,8 @@ Session state (multi-step untuk threshold, preset, dan jadwal) dipisah per platf
 ```
 Growbot/
 ├── asset/
-│   ├── flowchart.html    # Diagram alur sistem (interaktif, SVG inline)
+│   ├── flowchart.svg     # Diagram alur sistem (render langsung di GitHub)
+│   ├── flowchart.png     # Diagram alur sistem (versi PNG)
 │   └── growmate.png      # Logo proyek
 ├── index.js              # Server utama — webhook WA, polling TG, routing perintah
 ├── package.json
