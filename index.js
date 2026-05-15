@@ -48,7 +48,7 @@ function menuText() {
     '5. Atur Threshold\n' +
     '6. Tambah Preset Tanaman\n' +
     '7. Riwayat Kelembaban (5 Terakhir)\n' +
-    '8. Jumlah Penyiraman Hari Ini'
+    '8. Atur Jadwal Penyiraman'
   );
 }
 
@@ -67,8 +67,6 @@ async function cmdESP(path) {
 
 // -------------------------------------------------------------
 //  Pengirim pesan — abstraksi agar logika tidak duplikat
-//  platform : 'wa' | 'tg'
-//  target   : nomor WA atau chatId Telegram
 // -------------------------------------------------------------
 async function sendMsg(platform, target, text) {
   if (platform === 'wa') {
@@ -82,10 +80,57 @@ async function sendMsg(platform, target, text) {
 }
 
 // -------------------------------------------------------------
-//  Handler utama — dipanggil oleh webhook WA maupun listener TG
-//  platform : 'wa' | 'tg'
-//  target   : nomor WA atau chatId Telegram
-//  message  : teks pesan dari pengguna
+//  Utilitas jadwal
+// -------------------------------------------------------------
+function parseIntervalInput(input) {
+  // Format yang diterima:
+  //   "24"        → 24 jam
+  //   "24j"       → 24 jam
+  //   "90m"       → 90 menit
+  //   "1j30m"     → 1 jam 30 menit
+  //   "10:30"     → 10 jam 30 menit
+  //   "3600"      → dianggap menit jika <=10080, jam jika > terlalu besar
+  // Kembalikan total menit, atau null jika tidak valid.
+  const s = input.trim().toLowerCase();
+
+  // Format jam:menit  "10:30"
+  const colonMatch = s.match(/^(\d+):(\d{1,2})$/);
+  if (colonMatch) {
+    const totalMin = parseInt(colonMatch[1]) * 60 + parseInt(colonMatch[2]);
+    return totalMin > 0 && totalMin <= 10080 ? totalMin : null;
+  }
+
+  // Format kombinasi "1j30m" / "1h30m" / "30m" / "2j"
+  const comboMatch = s.match(/^(?:(\d+)[jh])?(?:(\d+)m)?$/);
+  if (comboMatch && (comboMatch[1] || comboMatch[2])) {
+    const h = parseInt(comboMatch[1] || '0');
+    const m = parseInt(comboMatch[2] || '0');
+    const totalMin = h * 60 + m;
+    return totalMin > 0 && totalMin <= 10080 ? totalMin : null;
+  }
+
+  // Angka murni → anggap jam
+  const numOnly = s.match(/^(\d+)$/);
+  if (numOnly) {
+    const val = parseInt(numOnly[1]);
+    // Interpretasi: jika ≤ 168 → jam, jika > 168 s/d 10080 → menit (user mungkin memasukkan menit)
+    const totalMin = val <= 168 ? val * 60 : val;
+    return totalMin > 0 && totalMin <= 10080 ? totalMin : null;
+  }
+
+  return null;
+}
+
+function fmtInterval(totalMin) {
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  if (h > 0 && m > 0) return `${h} jam ${m} menit`;
+  if (h > 0)           return `${h} jam`;
+  return `${m} menit`;
+}
+
+// -------------------------------------------------------------
+//  Handler utama
 // -------------------------------------------------------------
 async function handleMessage(platform, target, message) {
   const sessionKey = `${platform}:${target}`;
@@ -131,6 +176,33 @@ async function handleMessage(platform, target, message) {
     return;
   }
 
+  // --- Multi-step: input interval jadwal ---
+  if (sess && sess.step === 'await_schedule_interval') {
+    delete sessions[sessionKey];
+
+    // Cek apakah ingin menonaktifkan
+    const lower = message.trim().toLowerCase();
+    if (lower === '0' || lower === 'off' || lower === 'nonaktif' || lower === 'batal') {
+      await cmdESP('/api/schedule?min=0&en=0');
+      await sendMsg(platform, target, 'Jadwal penyiraman dinonaktifkan.' + menuText());
+      return;
+    }
+
+    const totalMin = parseIntervalInput(message);
+    if (!totalMin) {
+      await sendMsg(platform, target,
+        'Format tidak valid.\nContoh: "24" (24 jam), "12j" (12 jam), "90m" (90 menit), "1j30m" (1 jam 30 menit), "10:30" (10 jam 30 menit).' + menuText()
+      );
+      return;
+    }
+
+    await cmdESP(`/api/schedule?min=${totalMin}&en=1`);
+    await sendMsg(platform, target,
+      `Jadwal aktif! Penyiraman otomatis tiap ${fmtInterval(totalMin)}.\nPompa menyala 60 detik setiap giliran.` + menuText()
+    );
+    return;
+  }
+
   // --- Command utama ---
   switch (message) {
     case '1': {
@@ -139,7 +211,22 @@ async function handleMessage(platform, target, message) {
       const lastW = d.lastWatered === 0      ? 'Baru saja'
                   : d.lastWatered < 60       ? `${d.lastWatered}s lalu`
                   : `${Math.floor(d.lastWatered / 60)}m ${d.lastWatered % 60}s lalu`;
-      const out = `Status Growmate:\nKondisi: ${d.kondisi} (ADC: ${d.adc}, ${pct}%)\nPompa: ${d.pump}\nMode: ${d.mode}\nThreshold: ${d.threshold}\nTerakhir disiram: ${lastW}\nPenyiraman hari ini: ${d.count}x`;
+
+      let schedInfo = 'Jadwal: Nonaktif';
+      if (d.schedEnabled && d.schedIntervalMin > 0) {
+        const sisa = Math.max(0, d.schedIntervalMin - d.schedElapsedMin);
+        schedInfo = `Jadwal: Tiap ${fmtInterval(d.schedIntervalMin)} | Sisa: ${fmtInterval(sisa)}`;
+      }
+
+      const out =
+        `Status Growmate:\n` +
+        `Kondisi: ${d.kondisi} (ADC: ${d.adc}, ${pct}%)\n` +
+        `Pompa: ${d.pump}\n` +
+        `Mode: ${d.mode}\n` +
+        `Threshold: ${d.threshold}\n` +
+        `Terakhir disiram: ${lastW}\n` +
+        `Penyiraman total: ${d.count}x\n` +
+        schedInfo;
       await sendMsg(platform, target, out + menuText());
       break;
     }
@@ -183,8 +270,24 @@ async function handleMessage(platform, target, message) {
       break;
     }
     case '8': {
+      // Atur Jadwal Penyiraman
       const d = await getESPData();
-      await sendMsg(platform, target, `Jumlah penyiraman hari ini: ${d.count}x` + menuText());
+      let currentInfo = 'Jadwal saat ini: Nonaktif';
+      if (d.schedEnabled && d.schedIntervalMin > 0) {
+        const sisa = Math.max(0, d.schedIntervalMin - d.schedElapsedMin);
+        currentInfo = `Jadwal saat ini: Aktif — tiap ${fmtInterval(d.schedIntervalMin)}, sisa ${fmtInterval(sisa)}`;
+      }
+      sessions[sessionKey] = { step: 'await_schedule_interval' };
+      await sendMsg(platform, target,
+        `${currentInfo}\n\n` +
+        `Masukkan interval penyiraman terjadwal:\n` +
+        `- "24" → tiap 24 jam\n` +
+        `- "12j" → tiap 12 jam\n` +
+        `- "90m" → tiap 90 menit\n` +
+        `- "1j30m" → tiap 1 jam 30 menit\n` +
+        `- "10:30" → tiap 10 jam 30 menit\n` +
+        `- "0" atau "nonaktif" → matikan jadwal`
+      );
       break;
     }
     default: {
@@ -197,7 +300,7 @@ async function handleMessage(platform, target, message) {
 //  WhatsApp — webhook Fonnte
 // -------------------------------------------------------------
 app.post('/webhook', async (req, res) => {
-  res.sendStatus(200);   // balas cepat agar Fonnte tidak retry
+  res.sendStatus(200);
 
   console.log('[WA] Pesan masuk:', req.body);
 
@@ -251,7 +354,7 @@ if (bot) {
 //  Health check
 // -------------------------------------------------------------
 app.get('/', (req, res) => {
-  const wa = FONNTE_TOKEN  ? 'aktif' : 'nonaktif';
+  const wa = FONNTE_TOKEN   ? 'aktif' : 'nonaktif';
   const tg = TELEGRAM_TOKEN ? 'aktif' : 'nonaktif';
   res.send(`Growbot berjalan — WhatsApp: ${wa} | Telegram: ${tg}`);
 });
