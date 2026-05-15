@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Growmate Flowchart v2</title>
+<style>
+  body { margin: 0; padding: 0; background: #0a0a0a; font-family: 'DM Sans', sans-serif; }
+</style>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono&display=swap" rel="stylesheet">
+</head>
+<body>
+<svg width="100%" viewBox="0 0 700 1620" xmlns="http://www.w3.org/2000/svg" role="img">
+<title>Growmate v2 System Flowchart</title>
+<desc>System architecture flowchart for Growmate v2 — Hardware, Firmware, Network, Cloud, and User layers including scheduled watering.</desc>
+<defs>
+  <marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+    <path d="M2 1L8 5L2 9" fill="none" stroke="#555" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+  </marker>
+  <marker id="arr-dash" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+    <path d="M2 1L8 5L2 9" fill="none" stroke="#3a3a3a" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+  </marker>
+</defs>
+
+<!-- ============================================================ -->
+<!--  BACKGROUND LAYERS                                          -->
+<!-- ============================================================ -->
+
+<!-- Hardware -->
+<rect x="12" y="18" width="676" height="128" rx="10" fill="#0d1a10" stroke="#1f3d24" stroke-width="1"/>
+<text x="26" y="42" font-family="DM Mono" font-size="10" fill="#2d6b3a" letter-spacing="2">HARDWARE</text>
+
+<!-- Firmware -->
+<rect x="12" y="162" width="676" height="310" rx="10" fill="#0d1118" stroke="#1a2540" stroke-width="1"/>
+<text x="26" y="184" font-family="DM Mono" font-size="10" fill="#2a4080" letter-spacing="2">FIRMWARE</text>
+
+<!-- Network -->
+<rect x="12" y="488" width="676" height="148" rx="10" fill="#120e0a" stroke="#3d2810" stroke-width="1"/>
+<text x="26" y="510" font-family="DM Mono" font-size="10" fill="#6e4011" letter-spacing="2">NETWORK</text>
+
+<!-- Cloud -->
+<rect x="12" y="652" width="676" height="530" rx="10" fill="#0d0d0d" stroke="#282828" stroke-width="1"/>
+<text x="26" y="674" font-family="DM Mono" font-size="10" fill="#555" letter-spacing="2">CLOUD</text>
+
+<!-- User -->
+<rect x="12" y="1198" width="676" height="148" rx="10" fill="#0e0d18" stroke="#251f40" stroke-width="1"/>
+<text x="26" y="1218" font-family="DM Mono" font-size="10" fill="#3a3265" letter-spacing="2">USER</text>
+
+<!-- Legend -->
+<rect x="12" y="1362" width="676" height="50" rx="10" fill="#0d0d0d" stroke="#1e1e1e" stroke-width="1"/>
+<line x1="36" y1="1390" x2="80" y2="1390" stroke="#555" stroke-width="1.5" marker-end="url(#arr)"/>
+<text x="90" y="1394" font-family="DM Mono" font-size="10" fill="#666">Alur utama</text>
+<line x1="180" y1="1390" x2="224" y2="1390" stroke="#333" stroke-width="1" stroke-dasharray="4 3" marker-end="url(#arr-dash)"/>
+<text x="234" y="1394" font-family="DM Mono" font-size="10" fill="#555">Alur sekunder / opsional</text>
+<text x="430" y="1394" font-family="DM Mono" font-size="10" fill="#444">Klik node untuk detail</text>
+
+<!-- ============================================================ -->
+<!--  HARDWARE ROW                                               -->
+<!-- ============================================================ -->
+
+<!-- Soil sensor -->
+<g>
+  <rect x="40" y="56" width="175" height="72" rx="8" fill="#122018" stroke="#2a5c34" stroke-width="1"/>
+  <text x="127" y="84" text-anchor="middle" font-family="DM Sans" font-size="13" font-weight="600" fill="#5aab72">Sensor kelembaban</text>
+  <text x="127" y="102" text-anchor="middle" font-family="DM Mono" font-size="11" fill="#3a6e48">ADC pin A0 (0–1024)</text>
+</g>
+
+<!-- Relay -->
+<g>
+  <rect x="263" y="56" width="174" height="72" rx="8" fill="#201808" stroke="#5c3d10" stroke-width="1"/>
+  <text x="350" y="84" text-anchor="middle" font-family="DM Sans" font-size="13" font-weight="600" fill="#c07030">Relay module</text>
+  <text x="350" y="102" text-anchor="middle" font-family="DM Mono" font-size="11" fill="#7a4e1a">Pin D2/GPIO4, aktif HIGH</text>
+</g>
+
+<!-- Pump -->
+<g>
+  <rect x="485" y="56" width="175" height="72" rx="8" fill="#1a1008" stroke="#5c3510" stroke-width="1"/>
+  <text x="572" y="84" text-anchor="middle" font-family="DM Sans" font-size="13" font-weight="600" fill="#c86030">Pompa air mini DC</text>
+  <text x="572" y="102" text-anchor="middle" font-family="DM Mono" font-size="11" fill="#7a3f1a">Menyiram tanaman</text>
+</g>
+
+<!-- sensor → relay -->
+<line x1="215" y1="92" x2="263" y2="92" stroke="#555" stroke-width="1.5" marker-end="url(#arr)"/>
+<!-- relay → pump -->
+<line x1="437" y1="92" x2="485" y2="92" stroke="#555" stroke-width="1.5" marker-end="url(#arr)"/>
+
+<!-- ============================================================ -->
+<!--  FIRMWARE ROW 1: ADC + Control Logic + Blynk               -->
+<!-- ============================================================ -->
+
+<!-- sensor → Baca ADC (dashed) -->
+<line x1="127" y1="128" x2="127" y2="196" stroke="#333" stroke-width="1" stroke-dasharray="4 3" marker-end="url(#arr-dash)"/>
+
+<!-- Baca ADC -->
+<g>
+  <rect x="52" y="196" width="150" height="64" rx="8" fill="#0e1828" stroke="#1e3258" stroke-width="1"/>
+  <text x="127" y="222" text-anchor="middle" font-family="DM Sans" font-size="13" font-weight="600" fill="#4a80c8">Baca ADC</text>
+  <text x="127" y="240" text-anchor="middle" font-family="DM Mono" font-size="11" fill="#2d5485">analogRead(A0)</text>
+</g>
+
+<!-- Logika kontrol -->
+<g>
+  <rect x="238" y="196" width="224" height="64" rx="8" fill="#141428" stroke="#252570" stroke-width="1"/>
+  <text x="350" y="218" text-anchor="middle" font-family="DM Sans" font-size="13" font-weight="600" fill="#6060d0">Logika kontrol</text>
+  <text x="350" y="234" text-anchor="middle" font-family="DM Mono" font-size="10" fill="#404090">Auto / Manual / Threshold</text>
+  <text x="350" y="248" text-anchor="middle" font-family="DM Mono" font-size="10" fill="#404090">Jadwal / OTA / mDNS</text>
+</g>
+
+<!-- Blynk -->
+<g>
+  <rect x="490" y="196" width="180" height="64" rx="8" fill="#0c1e24" stroke="#1a4a5a" stroke-width="1"/>
+  <text x="580" y="218" text-anchor="middle" font-family="DM Sans" font-size="13" font-weight="600" fill="#30a0c0">Blynk IoT</text>
+  <text x="580" y="234" text-anchor="middle" font-family="DM Mono" font-size="10" fill="#207080">V0 ADC · V1 Mode</text>
+  <text x="580" y="248" text-anchor="middle" font-family="DM Mono" font-size="10" fill="#207080">V2 Kelembaban · V3 Pompa</text>
+</g>
+
+<!-- ADC → Logika -->
+<line x1="202" y1="228" x2="238" y2="228" stroke="#555" stroke-width="1.5" marker-end="url(#arr)"/>
+<!-- Logika → Blynk -->
+<line x1="462" y1="228" x2="490" y2="228" stroke="#555" stroke-width="1.5" marker-end="url(#arr)"/>
+
+<!-- ============================================================ -->
+<!--  FIRMWARE ROW 2: EEPROM + LCD + Scheduled Watering         -->
+<!-- ============================================================ -->
+
+<!-- EEPROM -->
+<g>
+  <rect x="40" y="308" width="170" height="64" rx="8" fill="#1a1008" stroke="#503010" stroke-width="1"/>
+  <text x="125" y="332" text-anchor="middle" font-family="DM Sans" font-size="13" font-weight="600" fill="#c08030">EEPROM</text>
+  <text x="125" y="348" text-anchor="middle" font-family="DM Mono" font-size="10" fill="#7a5018">Threshold + Preset</text>
+  <text x="125" y="362" text-anchor="middle" font-family="DM Mono" font-size="10" fill="#7a5018">+ Jadwal interval</text>
+</g>
+
+<!-- LCD I2C -->
+<g>
+  <rect x="237" y="308" width="175" height="64" rx="8" fill="#141414" stroke="#303030" stroke-width="1"/>
+  <text x="324" y="332" text-anchor="middle" font-family="DM Sans" font-size="13" font-weight="600" fill="#a0a0a0">LCD I2C 16×2</text>
+  <text x="324" y="348" text-anchor="middle" font-family="DM Mono" font-size="10" fill="#606060">ADC · kelembaban</text>
+  <text x="324" y="362" text-anchor="middle" font-family="DM Mono" font-size="10" fill="#606060">mode · pompa · jadwal</text>
+</g>
+
+<!-- Scheduled Watering (NEW) -->
+<g>
+  <rect x="440" y="308" width="230" height="64" rx="8" fill="#0e1a10" stroke="#1e4826" stroke-width="1.5"/>
+  <text x="555" y="328" text-anchor="middle" font-family="DM Sans" font-size="13" font-weight="600" fill="#50b870">Jadwal Penyiraman ★</text>
+  <text x="555" y="344" text-anchor="middle" font-family="DM Mono" font-size="10" fill="#2d7040">Timer interval: jam / menit</text>
+  <text x="555" y="358" text-anchor="middle" font-family="DM Mono" font-size="10" fill="#2d7040">Pompa ON 60 dtk tiap giliran</text>
+</g>
+
+<!-- Logika → EEPROM (dashed) -->
+<path d="M280 260 L280 285 L125 285 L125 308" fill="none" stroke="#333" stroke-width="1" stroke-dasharray="4 3" marker-end="url(#arr-dash)"/>
+<!-- Logika → LCD (dashed) -->
+<line x1="350" y1="260" x2="324" y2="308" fill="none" stroke="#333" stroke-width="1" stroke-dasharray="4 3" marker-end="url(#arr-dash)"/>
+<!-- Logika → Scheduled (main) -->
+<path d="M420 248 L555 248 L555 308" fill="none" stroke="#555" stroke-width="1.5" marker-end="url(#arr)"/>
+
+<!-- ============================================================ -->
+<!--  FIRMWARE ROW 3: Web Server HTTP                            -->
+<!-- ============================================================ -->
+
+<!-- Web Server -->
+<g>
+  <rect x="210" y="420" width="280" height="56" rx="8" fill="#141414" stroke="#303030" stroke-width="1"/>
+  <text x="350" y="442" text-anchor="middle" font-family="DM Sans" font-size="13" font-weight="600" fill="#a0a0a0">Web server HTTP</text>
+  <text x="350" y="459" text-anchor="middle" font-family="DM Mono" font-size="10" fill="#606060">/api/data · /on · /off · /auto · /api/schedule</text>
+</g>
+
+<!-- Logika → Web server -->
+<line x1="350" y1="372" x2="350" y2="420" stroke="#555" stroke-width="1.5" marker-end="url(#arr)"/>
+
+<!-- ============================================================ -->
+<!--  NETWORK ROW                                                -->
+<!-- ============================================================ -->
+
+<!-- Web dashboard -->
+<g>
+  <rect x="40" y="510" width="165" height="64" rx="8" fill="#0c1a10" stroke="#1a4022" stroke-width="1"/>
+  <text x="122" y="534" text-anchor="middle" font-family="DM Sans" font-size="13" font-weight="600" fill="#40a055">Web dashboard</text>
+  <text x="122" y="550" text-anchor="middle" font-family="DM Mono" font-size="10" fill="#287035">growmate.local</text>
+  <text x="122" y="564" text-anchor="middle" font-family="DM Mono" font-size="10" fill="#287035">Browser</text>
+</g>
+
+<!-- Cloudflare Tunnel -->
+<g>
+  <rect x="237" y="510" width="226" height="64" rx="8" fill="#1a1005" stroke="#503018" stroke-width="1"/>
+  <text x="350" y="534" text-anchor="middle" font-family="DM Sans" font-size="13" font-weight="600" fill="#c08030">Cloudflare Tunnel</text>
+  <text x="350" y="550" text-anchor="middle" font-family="DM Mono" font-size="10" fill="#7a5018">IP lokal → URL publik</text>
+  <text x="350" y="564" text-anchor="middle" font-family="DM Mono" font-size="10" fill="#7a5018">ESP8266 ↔ Cloud</text>
+</g>
+
+<!-- Tailscale -->
+<g>
+  <rect x="495" y="510" width="175" height="64" rx="8" fill="#141414" stroke="#282828" stroke-width="1"/>
+  <text x="582" y="534" text-anchor="middle" font-family="DM Sans" font-size="13" font-weight="600" fill="#888">Tailscale</text>
+  <text x="582" y="550" text-anchor="middle" font-family="DM Mono" font-size="10" fill="#555">Subnet router</text>
+  <text x="582" y="564" text-anchor="middle" font-family="DM Mono" font-size="10" fill="#555">(privat)</text>
+</g>
+
+<!-- "atau" between Cloudflare and Tailscale -->
+<text x="478" y="546" text-anchor="middle" font-family="DM Mono" font-size="10" fill="#444">atau</text>
+
+<!-- Web server → Cloudflare -->
+<line x1="350" y1="476" x2="350" y2="510" stroke="#555" stroke-width="1.5" marker-end="url(#arr)"/>
+<!-- Web server → Web dashboard (dashed) -->
+<path d="M260 476 L260 490 L122 490 L122 510" fill="none" stroke="#333" stroke-width="1" stroke-dasharray="4 3" marker-end="url(#arr-dash)"/>
+<!-- Cloudflare → Tailscale (dashed) -->
+<line x1="463" y1="542" x2="495" y2="542" stroke="#333" stroke-width="1" stroke-dasharray="4 3" marker-end="url(#arr-dash)"/>
+
+<!-- ============================================================ -->
+<!--  CLOUD ROW 1: Express Webhook + Command Parser + Fonnte     -->
+<!-- ============================================================ -->
+
+<!-- Express webhook -->
+<g>
+  <rect x="40" y="694" width="190" height="64" rx="8" fill="#141414" stroke="#282828" stroke-width="1"/>
+  <text x="135" y="718" text-anchor="middle" font-family="DM Sans" font-size="13" font-weight="600" fill="#888">Express webhook</text>
+  <text x="135" y="736" text-anchor="middle" font-family="DM Mono" font-size="10" fill="#555">POST /webhook</text>
+</g>
+
+<!-- Command Parser -->
+<g>
+  <rect x="262" y="694" width="176" height="64" rx="8" fill="#141428" stroke="#252560" stroke-width="1"/>
+  <text x="350" y="714" text-anchor="middle" font-family="DM Sans" font-size="13" font-weight="600" fill="#6060c8">Parser perintah</text>
+  <text x="350" y="730" text-anchor="middle" font-family="DM Mono" font-size="10" fill="#404090">Routing 1–8</text>
+  <text x="350" y="744" text-anchor="middle" font-family="DM Mono" font-size="10" fill="#404090">Multi-step session</text>
+</g>
+
+<!-- Fonnte API -->
+<g>
+  <rect x="470" y="694" width="200" height="64" rx="8" fill="#0e1a10" stroke="#1e4226" stroke-width="1"/>
+  <text x="570" y="714" text-anchor="middle" font-family="DM Sans" font-size="13" font-weight="600" fill="#40a055">Fonnte API</text>
+  <text x="570" y="730" text-anchor="middle" font-family="DM Mono" font-size="10" fill="#287035">POST /send → kirim WA</text>
+  <text x="570" y="744" text-anchor="middle" font-family="DM Mono" font-size="10" fill="#287035">Terima webhook masuk</text>
+</g>
+
+<!-- Cloudflare → Express (main) -->
+<line x1="350" y1="574" x2="135" y2="694" fill="none" stroke="#555" stroke-width="1.5" marker-end="url(#arr)"/>
+<!-- Express → Parser -->
+<line x1="230" y1="726" x2="262" y2="726" stroke="#555" stroke-width="1.5" marker-end="url(#arr)"/>
+<!-- Parser → Fonnte -->
+<line x1="438" y1="726" x2="470" y2="726" stroke="#555" stroke-width="1.5" marker-end="url(#arr)"/>
+
+<!-- ============================================================ -->
+<!--  CLOUD ROW 2: Session State + HTTP→ESP + Telegram           -->
+<!-- ============================================================ -->
+
+<!-- Session State -->
+<g>
+  <rect x="40" y="818" width="190" height="64" rx="8" fill="#141414" stroke="#282828" stroke-width="1"/>
+  <text x="135" y="840" text-anchor="middle" font-family="DM Sans" font-size="13" font-weight="600" fill="#888">Session state</text>
+  <text x="135" y="856" text-anchor="middle" font-family="DM Mono" font-size="10" fill="#555">Threshold · Preset</text>
+  <text x="135" y="870" text-anchor="middle" font-family="DM Mono" font-size="10" fill="#555">Jadwal interval</text>
+</g>
+
+<!-- HTTP → ESP8266 -->
+<g>
+  <rect x="262" y="818" width="176" height="64" rx="8" fill="#141414" stroke="#303030" stroke-width="1"/>
+  <text x="350" y="840" text-anchor="middle" font-family="DM Sans" font-size="13" font-weight="600" fill="#888">HTTP → ESP8266</text>
+  <text x="350" y="856" text-anchor="middle" font-family="DM Mono" font-size="10" fill="#555">Melalui URL tunnel</text>
+  <text x="350" y="870" text-anchor="middle" font-family="DM Mono" font-size="10" fill="#555">/api/schedule</text>
+</g>
+
+<!-- Telegram Bot API -->
+<g>
+  <rect x="470" y="818" width="200" height="64" rx="8" fill="#0c1824" stroke="#184060" stroke-width="1"/>
+  <text x="570" y="838" text-anchor="middle" font-family="DM Sans" font-size="13" font-weight="600" fill="#2880c0">Telegram Bot API</text>
+  <text x="570" y="854" text-anchor="middle" font-family="DM Mono" font-size="10" fill="#1a5880">Polling bot.on(message)</text>
+  <text x="570" y="868" text-anchor="middle" font-family="DM Mono" font-size="10" fill="#1a5880">sendMessage(chatId)</text>
+</g>
+
+<!-- Parser → Session (dashed) -->
+<path d="M310 758 L310 790 L135 790 L135 818" fill="none" stroke="#333" stroke-width="1" stroke-dasharray="4 3" marker-end="url(#arr-dash)"/>
+<!-- Parser → HTTP→ESP -->
+<line x1="350" y1="758" x2="350" y2="818" stroke="#555" stroke-width="1.5" marker-end="url(#arr)"/>
+<!-- Parser → Telegram (dashed) -->
+<path d="M390 758 L390 790 L570 790 L570 818" fill="none" stroke="#333" stroke-width="1" stroke-dasharray="4 3" marker-end="url(#arr-dash)"/>
+
+<!-- ============================================================ -->
+<!--  CLOUD ROW 3: Command Detail Boxes                         -->
+<!-- ============================================================ -->
+
+<!-- Commands 1-4 -->
+<g>
+  <rect x="40" y="940" width="182" height="100" rx="8" fill="#101018" stroke="#202040" stroke-width="1"/>
+  <text x="131" y="962" text-anchor="middle" font-family="DM Sans" font-size="12" font-weight="600" fill="#5050a0">Perintah 1–4</text>
+  <text x="131" y="978" text-anchor="middle" font-family="DM Mono" font-size="10" fill="#383870">1. Status terkini</text>
+  <text x="131" y="993" text-anchor="middle" font-family="DM Mono" font-size="10" fill="#383870">2. Manual ON</text>
+  <text x="131" y="1008" text-anchor="middle" font-family="DM Mono" font-size="10" fill="#383870">3. Manual OFF</text>
+  <text x="131" y="1023" text-anchor="middle" font-family="DM Mono" font-size="10" fill="#383870">4. Mode Auto</text>
+</g>
+
+<!-- Commands 5-7 -->
+<g>
+  <rect x="258" y="940" width="184" height="100" rx="8" fill="#101018" stroke="#202040" stroke-width="1"/>
+  <text x="350" y="962" text-anchor="middle" font-family="DM Sans" font-size="12" font-weight="600" fill="#5050a0">Perintah 5–7</text>
+  <text x="350" y="978" text-anchor="middle" font-family="DM Mono" font-size="10" fill="#383870">5. Atur threshold</text>
+  <text x="350" y="993" text-anchor="middle" font-family="DM Mono" font-size="10" fill="#383870">6. Tambah preset</text>
+  <text x="350" y="1008" text-anchor="middle" font-family="DM Mono" font-size="10" fill="#383870">7. Riwayat kelembaban</text>
+  <text x="350" y="1023" text-anchor="middle" font-family="DM Mono" font-size="10" fill="#383870">(5 terakhir)</text>
+</g>
+
+<!-- Command 8 — new, highlighted -->
+<g>
+  <rect x="478" y="940" width="192" height="100" rx="8" fill="#0e1a10" stroke="#2a5a30" stroke-width="1.5"/>
+  <text x="574" y="960" text-anchor="middle" font-family="DM Sans" font-size="12" font-weight="600" fill="#50b870">Perintah 8 ★ Baru</text>
+  <text x="574" y="978" text-anchor="middle" font-family="DM Mono" font-size="10" fill="#2d7040">Atur jadwal penyiraman</text>
+  <text x="574" y="994" text-anchor="middle" font-family="DM Mono" font-size="10" fill="#2d7040">Input: jam / menit / detik</text>
+  <text x="574" y="1010" text-anchor="middle" font-family="DM Mono" font-size="10" fill="#2d7040">Format: "24" "12j" "90m"</text>
+  <text x="574" y="1026" text-anchor="middle" font-family="DM Mono" font-size="10" fill="#2d7040">"1j30m" "10:30"</text>
+</g>
+
+<!-- Parser → Commands 1-4 -->
+<path d="M310 882 L310 920 L131 920 L131 940" fill="none" stroke="#333" stroke-width="1" stroke-dasharray="4 3" marker-end="url(#arr-dash)"/>
+<!-- Parser → Commands 5-7 -->
+<line x1="350" y1="882" x2="350" y2="940" stroke="#333" stroke-width="1" stroke-dasharray="4 3" marker-end="url(#arr-dash)"/>
+<!-- Parser → Command 8 -->
+<path d="M390 882 L390 920 L574 920 L574 940" fill="none" stroke="#2a5a30" stroke-width="1.5" marker-end="url(#arr)"/>
+
+<!-- ============================================================ -->
+<!--  CLOUD ROW 4: Scheduled Watering Trigger Flow              -->
+<!-- ============================================================ -->
+
+<!-- Interval Timer box -->
+<g>
+  <rect x="78" y="1098" width="184" height="64" rx="8" fill="#0e1a10" stroke="#1e4826" stroke-width="1"/>
+  <text x="170" y="1120" text-anchor="middle" font-family="DM Sans" font-size="12" font-weight="600" fill="#50b870">Timer interval</text>
+  <text x="170" y="1136" text-anchor="middle" font-family="DM Mono" font-size="10" fill="#2d7040">millis() ≥ schedIntervalMs</text>
+  <text x="170" y="1150" text-anchor="middle" font-family="DM Mono" font-size="10" fill="#2d7040">→ trigger penyiraman</text>
+</g>
+
+<!-- Command 8 → Timer interval -->
+<path d="M574 1040 L574 1070 L170 1070 L170 1098" fill="none" stroke="#2a5a30" stroke-width="1.5" marker-end="url(#arr)"/>
+
+<!-- Saved to EEPROM -->
+<g>
+  <rect x="300" y="1098" width="180" height="64" rx="8" fill="#141414" stroke="#282828" stroke-width="1"/>
+  <text x="390" y="1120" text-anchor="middle" font-family="DM Sans" font-size="12" font-weight="600" fill="#888">Simpan ke EEPROM</text>
+  <text x="390" y="1136" text-anchor="middle" font-family="DM Mono" font-size="10" fill="#555">/api/schedule?min=&amp;en=</text>
+  <text x="390" y="1150" text-anchor="middle" font-family="DM Mono" font-size="10" fill="#555">Persist setelah reboot</text>
+</g>
+
+<!-- HTTP → Saved to EEPROM -->
+<path d="M350 882 L390 882 L390 1098" fill="none" stroke="#333" stroke-width="1" stroke-dasharray="4 3" marker-end="url(#arr-dash)"/>
+
+<!-- Pompa trigger result -->
+<g>
+  <rect x="512" y="1098" width="158" height="64" rx="8" fill="#1a0e08" stroke="#503018" stroke-width="1"/>
+  <text x="591" y="1120" text-anchor="middle" font-family="DM Sans" font-size="12" font-weight="600" fill="#c08030">Pompa ON</text>
+  <text x="591" y="1136" text-anchor="middle" font-family="DM Mono" font-size="10" fill="#7a5018">60 detik</text>
+  <text x="591" y="1150" text-anchor="middle" font-family="DM Mono" font-size="10" fill="#7a5018">→ kembali Auto</text>
+</g>
+
+<!-- Timer interval → Pompa -->
+<line x1="262" y1="1130" x2="512" y2="1130" stroke="#555" stroke-width="1.5" marker-end="url(#arr)"/>
+
+<!-- ============================================================ -->
+<!--  USER ROW                                                   -->
+<!-- ============================================================ -->
+
+<!-- Blynk App -->
+<g>
+  <rect x="40" y="1228" width="160" height="88" rx="8" fill="#0c1824" stroke="#183060" stroke-width="1"/>
+  <text x="120" y="1254" text-anchor="middle" font-family="DM Sans" font-size="13" font-weight="600" fill="#2880c0">Aplikasi Blynk</text>
+  <text x="120" y="1272" text-anchor="middle" font-family="DM Mono" font-size="10" fill="#1a5880">Monitor + kontrol</text>
+  <text x="120" y="1288" text-anchor="middle" font-family="DM Mono" font-size="10" fill="#1a5880">V3 pompa manual</text>
+</g>
+
+<!-- Pengguna WA/TG -->
+<g>
+  <rect x="240" y="1228" width="220" height="88" rx="8" fill="#0e1a10" stroke="#1e4826" stroke-width="1"/>
+  <text x="350" y="1252" text-anchor="middle" font-family="DM Sans" font-size="13" font-weight="600" fill="#40a055">Pengguna</text>
+  <text x="350" y="1268" text-anchor="middle" font-family="DM Mono" font-size="10" fill="#287035">WhatsApp / Telegram</text>
+  <text x="350" y="1284" text-anchor="middle" font-family="DM Mono" font-size="10" fill="#287035">Kirim 1–8 · terima balasan</text>
+  <text x="350" y="1300" text-anchor="middle" font-family="DM Mono" font-size="10" fill="#287035">Atur jadwal dari chat</text>
+</g>
+
+<!-- Browser -->
+<g>
+  <rect x="500" y="1228" width="170" height="88" rx="8" fill="#141414" stroke="#282828" stroke-width="1"/>
+  <text x="585" y="1254" text-anchor="middle" font-family="DM Sans" font-size="13" font-weight="600" fill="#888">Browser</text>
+  <text x="585" y="1272" text-anchor="middle" font-family="DM Mono" font-size="10" fill="#555">Sensor · chart</text>
+  <text x="585" y="1288" text-anchor="middle" font-family="DM Mono" font-size="10" fill="#555">Preset · jadwal panel</text>
+</g>
+
+<!-- Blynk IoT → Blynk App (dashed) -->
+<path d="M580 260 L660 260 L660 1272 L200 1272" fill="none" stroke="#333" stroke-width="1" stroke-dasharray="4 3" marker-end="url(#arr-dash)"/>
+<!-- Fonnte → Pengguna -->
+<path d="M570 758 L570 1190 L350 1190 L350 1228" fill="none" stroke="#333" stroke-width="1" stroke-dasharray="4 3" marker-end="url(#arr-dash)"/>
+<!-- Telegram → Pengguna (dashed) -->
+<path d="M470 850 L350 850 L350 1228" fill="none" stroke="#333" stroke-width="1" stroke-dasharray="4 3"/>
+<!-- Web dashboard → Browser -->
+<path d="M122 574 L122 1190 L585 1190 L585 1228" fill="none" stroke="#333" stroke-width="1" stroke-dasharray="4 3" marker-end="url(#arr-dash)"/>
+
+</svg>
+</body>
+</html>
