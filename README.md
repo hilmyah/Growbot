@@ -8,11 +8,9 @@
 
 Growbot adalah server perantara berbasis **Node.js** yang menghubungkan **WhatsApp** (via Fonnte) dan **Telegram** dengan modul ESP8266 Growmate. Sistem irigasi dapat dipantau dan dikontrol dari jarak jauh melalui pesan teks biasa. Kedua platform berjalan bersamaan dan saling membackup — jika satu bermasalah, platform lainnya tetap berfungsi.
 
-```
-WhatsApp  →  Fonnte  ┐
-                      ├→  Growbot (Railway)  →  Cloudflare Tunnel  →  ESP8266
-Telegram  →  Polling ┘
-```
+<div align="center">
+  <img src="asset/flowchart.png" alt="Flowchart Arsitektur Growbot" style="max-width: 100%;">
+</div>
 
 > Repo firmware dan hardware: [hilmyah/Growmate](https://github.com/hilmyah/Growmate)
 
