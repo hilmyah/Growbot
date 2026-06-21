@@ -1,300 +1,109 @@
 <div align="center">
-  <img src="asset/growmate.png" alt="Growmate Logo" width="120" height="120" style="border-radius:12px"/>
+  <img src="asset/growmate.png" alt="Growbot Logo" width="120" height="120" style="border-radius:12px"/>
   <h1>Growbot</h1>
-  <p>WhatsApp & Telegram Gateway untuk <a href="https://github.com/hilmyah/Growmate">Growmate</a> — sistem irigasi cerdas berbasis ESP8266 / WEMOS D1 Mini</p>
+  <p>WhatsApp dan Telegram Gateway untuk sistem irigasi cerdas Growmate.</p>
+  <p>
+    <a href="https://github.com/hilmyah/Growmate">Growmate Firmware</a>
+  </p>
 </div>
 
----
-
-Growbot adalah server perantara berbasis **Node.js** yang menghubungkan **WhatsApp** (via Fonnte) dan **Telegram** dengan modul ESP8266 Growmate. Sistem irigasi dapat dipantau dan dikontrol dari jarak jauh melalui pesan teks biasa. Kedua platform berjalan bersamaan dan saling membackup — jika satu bermasalah, platform lainnya tetap berfungsi.
-
-```
-WhatsApp  →  Fonnte  ┐
-                      ├→  Growbot (Railway)  →  Cloudflare Tunnel  →  ESP8266
-Telegram  →  Polling ┘
-```
-
-> Repo firmware dan hardware: [hilmyah/Growmate](https://github.com/hilmyah/Growmate)
-
----
-
-## Daftar Isi
-
-- [Fitur](#fitur)
-- [Cara Kerja Sistem](#cara-kerja-sistem)
-- [Struktur Proyek](#struktur-proyek)
-- [Persyaratan](#persyaratan)
-- [Tahap 1 — Instalasi](#tahap-1--instalasi)
-- [Tahap 2 — Setup WhatsApp (Fonnte)](#tahap-2--setup-whatsapp-fonnte)
-- [Tahap 3 — Setup Telegram Bot](#tahap-3--setup-telegram-bot)
-- [Tahap 4 — Remote Access](#tahap-4--remote-access)
-- [Tahap 5 — Deploy ke Railway](#tahap-5--deploy-ke-railway)
-- [Tahap 6 — Menjalankan Secara Lokal](#tahap-6--menjalankan-secara-lokal)
-- [Referensi API ESP8266](#referensi-api-esp8266)
-
----
+![Node.js](https://img.shields.io/badge/Node.js-%3E%3D18-339933?logo=node.js&logoColor=white)
+![Platform](https://img.shields.io/badge/Platform-Railway%20%7C%20Local-lightgrey)
 
 ## Fitur
 
-| Perintah | Fungsi |
-|:---:|---|
-| `1` | Status terkini — ADC, kelembaban %, kondisi tanah, mode, threshold, waktu terakhir disiram |
-| `2` | Nyalakan pompa manual (mati otomatis dalam 60 detik) |
-| `3` | Matikan pompa manual |
-| `4` | Aktifkan mode otomatis |
-| `5` | Atur nilai threshold (input multi-step, rentang 200–1024) |
-| `6` | Tambah preset tanaman baru (nama + threshold, input multi-step) |
-| `7` | Riwayat 5 data kelembaban terakhir |
-| `8` | Atur jadwal penyiraman terjadwal (interval jam/menit, persisten di EEPROM) |
+| Fitur | Deskripsi |
+| --- | --- |
+| Dual Platform Gateway | Menghubungkan kontrol irigasi melalui antarmuka pesan WhatsApp dan Telegram secara bersamaan. |
+| Redundansi Akses | Kedua platform berjalan paralel. Jika salah satu layanan gagal, platform lainnya tetap berfungsi sebagai cadangan. |
+| Realtime Monitoring | Memantau status kelembaban tanah, status pompa, dan mode operasi mikrokontroler dari jarak jauh. |
+| Remote Control | Mengeksekusi penyiraman manual, mengubah batas ambang nilai kelembaban, dan mengonfigurasi jadwal irigasi. |
 
-Menu dikirim otomatis di setiap balasan. Kedua platform (WA & Telegram) mendukung seluruh perintah di atas. Token masing-masing bersifat opsional — platform hanya aktif jika token-nya diisi di `.env`.
+## Konsep dan Arsitektur
 
----
+Server perantara ini memproses logika komunikasi asinkron antara pengguna akhir dan perangkat IoT (ESP8266). Sistem menggunakan Webhook untuk menangani lalu lintas data WhatsApp melalui Fonnte, dan menggunakan metode Polling untuk menangani instruksi Telegram.
 
-## Cara Kerja Sistem
+![Alur Kerja Growbot](asset/flowchart.png)
 
-<div align="center">
-  <img src="asset/flowchart.png" alt="Flowchart arsitektur sistem Growmate" style="max-width:100%"/>
-</div>
-
-Alur singkat:
-
-1. **ESP8266 / WEMOS D1 Mini** membaca kelembaban tanah, menampilkan status di LCD, dan menjalankan web server HTTP lokal.
-2. **Cloudflare Tunnel / Tailscale** mengekspos IP lokal ESP8266 ke internet secara aman.
-3. **Growbot** (di Railway) menerima pesan dari Fonnte via webhook **atau** dari Telegram via polling, memproses perintah, lalu memanggil endpoint ESP melalui URL tunnel.
-4. Balasan dikirim balik ke pengguna di platform yang sama.
-
-Session state (multi-step untuk threshold, preset, dan jadwal) dipisah per platform menggunakan key format `wa:<nomor>` dan `tg:<chatId>`, sehingga keduanya tidak saling bentrok.
-
----
-
-## Struktur Proyek
+```text
++------------+       Webhook       +-------------------+       HTTP GET       +-----------------+
+|  WhatsApp  | <-----------------> |                   | <------------------> |                 |
+|  (Fonnte)  |                     |  Growbot Server   |                      |  Growmate       |
++------------+                     |  (Node.js)        |                      |  (ESP8266)      |
+                                   |                   |                      |                 |
++------------+       Polling       |                   |                      |                 |
+|  Telegram  | <-----------------> |                   |                      |                 |
+|  (Bot API) |                     +-------------------+                      +-----------------+
++------------+
 
 ```
-Growbot/
-├── asset/
-│   ├── flowchart.svg     # Diagram alur sistem (render langsung di GitHub)
-│   ├── flowchart.png     # Diagram alur sistem (versi PNG)
-│   └── growmate.png      # Logo proyek
-├── index.js              # Server utama — webhook WA, polling TG, routing perintah
-├── package.json
-├── package-lock.json
-├── .env.example          # Template variabel environment
-└── .gitignore
-```
 
-### Penjelasan `index.js`
+## Prasyarat
 
-| Bagian | Keterangan |
-|---|---|
-| `sessions` | Object in-memory — state percakapan multi-step per platform & pengguna |
-| `menuText()` | Generator teks menu yang disisipkan di setiap balasan |
-| `sendMsg(platform, target, text)` | Abstraksi pengiriman pesan — WA via Fonnte, Telegram via `bot.sendMessage` |
-| `handleMessage(platform, target, message)` | Logika terpusat — dipanggil oleh webhook WA dan listener Telegram |
-| `getESPData()` | `GET /api/data` ke ESP |
-| `cmdESP(path)` | `GET {path}` ke ESP — perintah `/on`, `/off`, `/auto`, `/api/threshold`, `/api/schedule` |
-| `parseIntervalInput(input)` | Parser format interval jadwal: `"24"`, `"12j"`, `"90m"`, `"1j30m"`, `"10:30"` |
-| `fmtInterval(totalMin)` | Konversi menit ke string yang mudah dibaca (`"1 jam 30 menit"`) |
-| `POST /webhook` | Menerima pesan masuk dari Fonnte (WhatsApp) |
-| `bot.on('message')` | Menerima pesan masuk dari Telegram via polling |
+| Komponen | Spesifikasi / Versi | Keterangan |
+| --- | --- | --- |
+| Node.js | >= 18.x | Runtime untuk mengeksekusi server backend aplikasi |
+| npm | >= 9.x | Package manager untuk mengunduh dependensi |
+| Akun Fonnte | Aktif | Layanan pihak ketiga penyedia API WhatsApp |
+| Bot Telegram | BotFather | Membutuhkan kredensial token HTTP API |
+| Publikator Port | Cloudflared / Ngrok | Diperlukan jika server berjalan di jaringan lokal (localhost) |
 
----
+## Instalasi
 
-## Persyaratan
-
-- Node.js v16 atau lebih baru
-- Akun [Fonnte](https://fonnte.com) dengan device WhatsApp aktif *(opsional)*
-- Bot Telegram dari [@BotFather](https://t.me/BotFather) *(opsional)*
-- Firmware Growmate v2 sudah berjalan di ESP8266 (lihat [hilmyah/Growmate](https://github.com/hilmyah/Growmate))
-- `cloudflared` atau Tailscale di komputer yang satu jaringan dengan ESP8266
-
-> Minimal salah satu dari `FONNTE_TOKEN` atau `TELEGRAM_TOKEN` harus diisi agar bot aktif.
-
----
-
-## Tahap 1 — Instalasi
-
-**Clone dan install dependensi:**
+Kloning repositori dan instal dependensi yang diperlukan:
 
 ```bash
-git clone https://github.com/hilmyah/Growbot.git
+git clone [https://github.com/hilmyah/Growbot.git](https://github.com/hilmyah/Growbot.git)
 cd Growbot
 npm install
+
 ```
 
-**Salin dan isi file environment:**
+## Konfigurasi
+
+Persiapkan parameter environment sebelum menjalankan gateway. Salin konfigurasi bawaan:
 
 ```bash
 cp .env.example .env
-```
-
-```ini
-# WhatsApp — token dari dashboard Fonnte (kosongkan jika tidak dipakai)
-FONNTE_TOKEN=token_dari_fonnte
-
-# Telegram — token dari @BotFather (kosongkan jika tidak dipakai)
-TELEGRAM_TOKEN=1234567890:AAHxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-
-# URL ESP8266 dari Cloudflare Tunnel atau Tailscale IP
-ESP_URL=https://random-name.trycloudflare.com
-
-PORT=3000
-```
-
-Saat server dijalankan, terminal menampilkan platform mana yang aktif:
 
 ```
-WhatsApp (Fonnte) aktif.
-Telegram Bot aktif.
-Server aktif pada port 3000
-```
 
----
+Sesuaikan nilai di dalam `.env` berdasarkan kredensial masing-masing platform.
 
-## Tahap 2 — Setup WhatsApp (Fonnte)
+| Variabel Lingkungan | Status | Default | Deskripsi |
+| --- | --- | --- | --- |
+| `FONNTE_TOKEN` | Wajib | - | Token akses API akun Fonnte untuk validasi request WhatsApp. |
+| `TELEGRAM_BOT_TOKEN` | Wajib | - | Token identifikasi bot Telegram dari BotFather. |
+| `ESP_IP` | Wajib | - | Alamat IP atau URL resolusi (tunnel) perangkat ESP8266 target. |
+| `PORT` | Opsional | 3000 | Port eksekusi server Node.js lokal. |
 
-1. Buka [fonnte.com](https://fonnte.com) → buat akun
-2. **Tambah Device** → scan QR menggunakan WhatsApp yang dijadikan bot
-3. Salin **Token** → masukkan ke `FONNTE_TOKEN` di `.env`
-4. Setelah server di-deploy (lihat Tahap 5), isi **Webhook URL** di pengaturan device Fonnte:
-   ```
-   https://nama-app.up.railway.app/webhook
-   ```
-5. Kirim pesan apa saja ke nomor bot untuk memverifikasi webhook aktif
+## Manajemen dan Operasional
 
----
-
-## Tahap 3 — Setup Telegram Bot
-
-1. Buka [@BotFather](https://t.me/BotFather) di Telegram → kirim `/newbot`
-2. Ikuti instruksi — pilih nama dan username bot
-3. Salin **token** yang diberikan (format: `1234567890:AAHxxxxxxx`) → masukkan ke `TELEGRAM_TOKEN` di `.env`
-4. Tidak perlu konfigurasi webhook — Growbot menggunakan **polling** sehingga langsung aktif saat server berjalan
-
-> Telegram polling tidak memerlukan URL publik untuk bot itu sendiri. Yang memerlukan URL publik hanyalah `ESP_URL` (tunnel ke ESP8266).
-
----
-
-## Tahap 4 — Remote Access
-
-Server Growbot di Railway tidak dapat langsung menjangkau ESP8266 di jaringan lokal. Jalankan salah satu metode berikut di komputer yang **satu jaringan WiFi dengan ESP8266** dan biarkan berjalan selama sistem digunakan.
-
-### Opsi A — Cloudflare Tunnel (Direkomendasikan)
-
-```bash
-# Instalasi
-brew install cloudflared              # macOS
-winget install Cloudflare.cloudflared # Windows
-
-# Jalankan tunnel ke IP ESP8266
-cloudflared tunnel --url http://192.168.X.X
-```
-
-URL publik muncul di terminal:
-
-```
-https://random-name.trycloudflare.com
-```
-
-Salin ke `ESP_URL` di `.env` atau variabel Railway.
-
-> URL berubah setiap `cloudflared` dijalankan ulang. Untuk URL permanen, buat [Named Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/) dengan akun Cloudflare gratis.
-
-### Opsi B — Tailscale Subnet Router
-
-```bash
-# Linux / macOS
-sudo tailscale up --advertise-routes=192.168.1.0/24
-
-# Windows (PowerShell sebagai Administrator)
-tailscale up --advertise-routes=192.168.1.0/24
-```
-
-Sesuaikan subnet dengan jaringan WiFi yang digunakan. Setujui route di [Tailscale Admin Console](https://login.tailscale.com/admin/machines), lalu gunakan IP lokal ESP8266 sebagai `ESP_URL`:
-
-```ini
-ESP_URL=http://192.168.1.X
-```
-
----
-
-## Tahap 5 — Deploy ke Railway
-
-1. Push repo ini ke GitHub
-2. Buka [railway.app](https://railway.app) → **New Project** → **Deploy from GitHub Repo**
-3. Pilih repo `Growbot`
-4. Buka tab **Variables**, tambahkan:
-
-   | Key | Value |
-   |---|---|
-   | `FONNTE_TOKEN` | Token Fonnte *(kosongkan jika tidak dipakai)* |
-   | `TELEGRAM_TOKEN` | Token BotFather *(kosongkan jika tidak dipakai)* |
-   | `ESP_URL` | URL Cloudflare Tunnel atau IP Tailscale |
-   | `PORT` | `3000` |
-
-5. Railway otomatis menjalankan `npm start`
-6. Salin URL Railway → tempel ditambah `/webhook` ke Webhook URL di Fonnte
-
----
-
-## Tahap 6 — Menjalankan Secara Lokal
+Menjalankan server Node.js:
 
 ```bash
 npm start
+
 ```
 
-Untuk menerima webhook Fonnte saat pengembangan lokal, buat URL publik sementara:
+### Konfigurasi Webhook Fonnte (Akses Lokal)
+
+Telegram menggunakan metode *polling* sehingga dapat menerima pesan meskipun berjalan di localhost. Namun, untuk menerima *webhook* WhatsApp dari server Fonnte, *port* lokal harus diekspos ke jaringan publik menggunakan salah satu metode berikut:
 
 ```bash
-# Cloudflared
+# Menggunakan Cloudflared
 cloudflared tunnel --url http://localhost:3000
 
-# ngrok
+# Menggunakan Ngrok
 ngrok http 3000
 
-# localhost.run (tanpa instalasi)
+# Menggunakan localhost.run (tanpa instalasi pihak ketiga)
 ssh -R 80:localhost:3000 nokey@localhost.run
+
 ```
 
-Gunakan URL yang dihasilkan sebagai Webhook URL sementara di Fonnte.
+Salin URL publik yang dihasilkan oleh perintah di atas dan daftarkan pada pengaturan Webhook URL di *dashboard* Fonnte Anda.
 
-> Telegram polling berjalan langsung tanpa URL publik — tidak perlu konfigurasi tambahan untuk pengujian lokal.
+## Referensi Terkait
 
----
-
-## Referensi API ESP8266
-
-| Method | Endpoint | Keterangan |
-|:---:|---|---|
-| GET | `/api/data` | Status lengkap (ADC, kondisi, pompa, mode, threshold, count, jadwal) |
-| GET | `/api/threshold?val=700` | Ubah threshold |
-| GET | `/api/presets` | Ambil daftar preset kustom |
-| POST | `/api/presets` | Simpan preset kustom (JSON array) |
-| GET | `/api/history` | 5 data ADC terakhir |
-| GET | `/api/schedule?min=60&en=1` | Atur jadwal penyiraman (`en=0` untuk nonaktifkan) |
-| GET | `/on` | Manual ON |
-| GET | `/off` | Manual OFF |
-| GET | `/auto` | Mode otomatis |
-
-**Contoh respons `/api/data`:**
-
-```json
-{
-  "adc": 732,
-  "kondisi": "KERING",
-  "pump": "ON",
-  "mode": "AUTO",
-  "threshold": 700,
-  "lastWatered": 143,
-  "count": 3,
-  "schedEnabled": true,
-  "schedIntervalMin": 720,
-  "schedElapsedMin": 45
-}
-```
-
----
-
-<div align="center">
-  <sub>Growbot merupakan bagian dari proyek <a href="https://github.com/hilmyah/Growmate">Growmate</a> — Smart Irrigation System berbasis ESP8266 / WEMOS D1 Mini.</sub>
-</div>
+Pemrosesan data sensor dan instruksi fisik secara detail ditangani oleh unit ESP8266. Dokumentasi instruksi API endpoint yang diakses oleh Growbot pada unit mikrokontroler dapat dilihat melalui repositori [Growmate](https://www.google.com/url?sa=E&source=gmail&q=https://github.com/hilmyah/Growmate).
