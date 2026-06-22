@@ -62,6 +62,8 @@ Menu dikirim otomatis di setiap balasan. Kedua platform (WA dan Telegram) menduk
 
 Server perantara ini memproses logika komunikasi asinkron antara pengguna akhir dan perangkat IoT (ESP8266). Sistem menggunakan webhook untuk menangani lalu lintas data WhatsApp melalui Fonnte, dan menggunakan metode polling untuk menangani instruksi Telegram.
 
+![Alur Kerja Growbot](asset/flowchart.png)
+
 ```text
 +------------+       Webhook       +-------------------+       HTTP GET       +-----------------+
 |  WhatsApp  | <-----------------> |                   | <------------------> |                 |
